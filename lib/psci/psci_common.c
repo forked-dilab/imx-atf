@@ -121,7 +121,7 @@ CASSERT(PLAT_MAX_RET_STATE < PLAT_MAX_OFF_STATE,
  * is valid. If so, it returns the requested states for each power level.
  *****************************************************************************/
 int psci_validate_power_state(unsigned int power_state,
-			      psci_power_state_t *state_info)
+				  psci_power_state_t *state_info)
 {
 	/* Check SBZ bits in power state are zero */
 	if (psci_check_power_state(power_state) != 0U)
@@ -301,7 +301,7 @@ static void set_non_cpu_pd_node_local_state(unsigned int parent_idx,
  * each power domain has emerged from.
  *****************************************************************************/
 void psci_get_target_local_pwr_states(unsigned int end_pwrlvl,
-				      psci_power_state_t *target_state)
+					  psci_power_state_t *target_state)
 {
 	unsigned int parent_idx, lvl;
 	plat_local_state_t *pd_state = target_state->pwr_domain_state;
@@ -349,13 +349,12 @@ static void psci_set_target_local_pwr_states(unsigned int end_pwrlvl,
 	}
 }
 
-
 /*******************************************************************************
  * PSCI helper function to get the parent nodes corresponding to a cpu_index.
  ******************************************************************************/
 void psci_get_parent_pwr_domain_nodes(unsigned int cpu_idx,
-				      unsigned int end_lvl,
-				      unsigned int *node_index)
+					  unsigned int end_lvl,
+					  unsigned int *node_index)
 {
 	unsigned int parent_node = psci_cpu_pd_nodes[cpu_idx].parent_node;
 	unsigned int i;
@@ -364,6 +363,7 @@ void psci_get_parent_pwr_domain_nodes(unsigned int cpu_idx,
 	for (i = PSCI_CPU_PWR_LVL + 1U; i <= end_lvl; i++) {
 		*node = parent_node;
 		node++;
+
 		parent_node = psci_non_cpu_pd_nodes[parent_node].parent_node;
 	}
 }
@@ -383,8 +383,8 @@ void psci_set_pwr_domains_to_run(unsigned int end_pwrlvl)
 		set_non_cpu_pd_node_local_state(parent_idx,
 				PSCI_LOCAL_STATE_RUN);
 		psci_set_req_local_pwr_state(lvl,
-					     cpu_idx,
-					     PSCI_LOCAL_STATE_RUN);
+						 cpu_idx,
+						 PSCI_LOCAL_STATE_RUN);
 		parent_idx = psci_non_cpu_pd_nodes[parent_idx].parent_node;
 	}
 
@@ -432,7 +432,7 @@ void psci_do_state_coordination(unsigned int end_pwrlvl,
 
 		/* First update the requested power state */
 		psci_set_req_local_pwr_state(lvl, cpu_idx,
-					     state_info->pwr_domain_state[lvl]);
+						 state_info->pwr_domain_state[lvl]);
 
 		/* Get the requested power states for this power level */
 		start_idx = psci_non_cpu_pd_nodes[parent_idx].cpu_start_idx;
@@ -464,7 +464,7 @@ void psci_do_state_coordination(unsigned int end_pwrlvl,
 	 */
 	for (lvl = lvl + 1U; lvl <= end_pwrlvl; lvl++) {
 		psci_set_req_local_pwr_state(lvl, cpu_idx,
-					     state_info->pwr_domain_state[lvl]);
+						 state_info->pwr_domain_state[lvl]);
 		state_info->pwr_domain_state[lvl] = PSCI_LOCAL_STATE_RUN;
 
 	}
@@ -485,7 +485,7 @@ void psci_do_state_coordination(unsigned int end_pwrlvl,
  * expected to perform these validations as well.
  *****************************************************************************/
 int psci_validate_suspend_req(const psci_power_state_t *state_info,
-			      unsigned int is_power_down_state)
+				  unsigned int is_power_down_state)
 {
 	unsigned int max_off_lvl, target_lvl, max_retn_lvl;
 	plat_local_state_t state;
@@ -622,9 +622,15 @@ int psci_validate_mpidr(u_register_t mpidr)
  * PSCI entrypoint on power on/resume and returns it.
  ******************************************************************************/
 #ifdef __aarch64__
+#ifdef SPD_toppers
+int psci_get_ns_ep_info(entry_point_info_t *ep,
+					  uintptr_t entrypoint,
+					  u_register_t context_id)
+#else  /* SPD_toppers */
 static int psci_get_ns_ep_info(entry_point_info_t *ep,
-			       uintptr_t entrypoint,
-			       u_register_t context_id)
+				   uintptr_t entrypoint,
+				   u_register_t context_id)
+#endif /* SPD_toppers */
 {
 	u_register_t ep_attr, sctlr;
 	unsigned int daif, ee, mode;
@@ -680,8 +686,8 @@ static int psci_get_ns_ep_info(entry_point_info_t *ep,
 }
 #else /* !__aarch64__ */
 static int psci_get_ns_ep_info(entry_point_info_t *ep,
-			       uintptr_t entrypoint,
-			       u_register_t context_id)
+				   uintptr_t entrypoint,
+				   u_register_t context_id)
 {
 	u_register_t ep_attr;
 	unsigned int aif, ee, mode;
@@ -732,8 +738,8 @@ static int psci_get_ns_ep_info(entry_point_info_t *ep,
  * 'entry_point_info'.
  ******************************************************************************/
 int psci_validate_entry_point(entry_point_info_t *ep,
-			      uintptr_t entrypoint,
-			      u_register_t context_id)
+				  uintptr_t entrypoint,
+				  u_register_t context_id)
 {
 	int rc;
 
@@ -792,7 +798,9 @@ void psci_warmboot_entrypoint(void)
 	 * that by the time all locks are taken, the system topology is snapshot
 	 * and state management can be done safely.
 	 */
+#ifndef        SPD_toppers
 	psci_acquire_pwr_domain_locks(end_pwrlvl, parent_nodes);
+#endif /* SPD_toppers */
 
 	psci_get_target_local_pwr_states(end_pwrlvl, &state_info);
 
@@ -812,10 +820,11 @@ void psci_warmboot_entrypoint(void)
 	 * of power management handler and perform the generic, architecture
 	 * and platform specific handling.
 	 */
-	if (psci_get_aff_info_state() == AFF_STATE_ON_PENDING)
+	if (psci_get_aff_info_state() == AFF_STATE_ON_PENDING) {
 		psci_cpu_on_finish(cpu_idx, &state_info);
-	else
+	} else {
 		psci_cpu_suspend_finish(cpu_idx, &state_info);
+	}
 
 	/*
 	 * Set the requested and target state of this CPU and all the higher
@@ -837,7 +846,9 @@ void psci_warmboot_entrypoint(void)
 	 * This loop releases the lock corresponding to each power level
 	 * in the reverse order to which they were acquired.
 	 */
+#ifndef        SPD_toppers
 	psci_release_pwr_domain_locks(end_pwrlvl, parent_nodes);
+#endif /* SPD_toppers */
 }
 
 /*******************************************************************************
@@ -875,7 +886,7 @@ int psci_spd_migrate_info(u_register_t *mpidr)
 	rc = psci_spd_pm->svc_migrate_info(mpidr);
 
 	assert((rc == PSCI_TOS_UP_MIG_CAP) || (rc == PSCI_TOS_NOT_UP_MIG_CAP) ||
-	       (rc == PSCI_TOS_NOT_PRESENT_MP) || (rc == PSCI_E_NOT_SUPPORTED));
+		   (rc == PSCI_TOS_NOT_PRESENT_MP) || (rc == PSCI_E_NOT_SUPPORTED));
 
 	return rc;
 }

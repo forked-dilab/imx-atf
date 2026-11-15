@@ -208,6 +208,17 @@ int __init psci_setup(const psci_lib_args_t *lib_args)
 	psci_cpu_pd_nodes[plat_my_core_pos()].mpidr =
 		read_mpidr() & MPIDR_AFFINITY_MASK;
 
+/*
+ * TOPPERS:
+ * Ensure CPU power domain topology is visible to secondary CPUs
+ * before they enter the BL31 warmboot path.
+ */
+#ifdef SPD_toppers
+	psci_flush_dcache_range(
+			(uintptr_t)psci_cpu_pd_nodes,
+			sizeof(psci_cpu_pd_nodes));
+#endif
+
 	psci_init_req_local_pwr_states();
 
 	/*
@@ -233,10 +244,10 @@ int __init psci_setup(const psci_lib_args_t *lib_args)
 	if (psci_plat_pm_ops->pwr_domain_off != NULL)
 		psci_caps |=  define_psci_cap(PSCI_CPU_OFF);
 	if ((psci_plat_pm_ops->pwr_domain_on != NULL) &&
-	    (psci_plat_pm_ops->pwr_domain_on_finish != NULL))
+		(psci_plat_pm_ops->pwr_domain_on_finish != NULL))
 		psci_caps |=  define_psci_cap(PSCI_CPU_ON_AARCH64);
 	if ((psci_plat_pm_ops->pwr_domain_suspend != NULL) &&
-	    (psci_plat_pm_ops->pwr_domain_suspend_finish != NULL)) {
+		(psci_plat_pm_ops->pwr_domain_suspend_finish != NULL)) {
 		psci_caps |=  define_psci_cap(PSCI_CPU_SUSPEND_AARCH64);
 		if (psci_plat_pm_ops->get_sys_suspend_power_state != NULL)
 			psci_caps |=  define_psci_cap(PSCI_SYSTEM_SUSPEND_AARCH64);

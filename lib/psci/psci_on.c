@@ -17,6 +17,10 @@
 
 #include "psci_private.h"
 
+#ifdef SPD_toppers
+extern spinlock_t      toppers_lock;
+#endif /* SPD_toppers */
+
 /*
  * Helper functions for the CPU level spinlocks
  */
@@ -57,7 +61,7 @@ static int cpu_on_validate_state(aff_info_state_t aff_state)
  * platform handler as it can return error.
  ******************************************************************************/
 int psci_cpu_on_start(u_register_t target_cpu,
-		      const entry_point_info_t *ep)
+			  const entry_point_info_t *ep)
 {
 	int rc;
 	aff_info_state_t target_aff_state;
@@ -72,7 +76,7 @@ int psci_cpu_on_start(u_register_t target_cpu,
 	 * CPU_ON platform hooks have been implemented.
 	 */
 	assert((psci_plat_pm_ops->pwr_domain_on != NULL) &&
-	       (psci_plat_pm_ops->pwr_domain_on_finish != NULL));
+		   (psci_plat_pm_ops->pwr_domain_on_finish != NULL));
 
 	/* Protect against multiple CPUs trying to turn ON the same target CPU */
 	psci_spin_lock_cpu(target_idx);
@@ -96,8 +100,22 @@ int psci_cpu_on_start(u_register_t target_cpu,
 	flush_cpu_data_by_index((unsigned int)target_idx,
 				psci_svc_cpu_data.aff_info_state);
 	rc = cpu_on_validate_state(psci_get_aff_info_state_by_idx(target_idx));
+#ifdef SPD_toppers
+	if (rc != PSCI_E_SUCCESS)
+	{
+		/* TOPPERS/FMP already has turned up the cpu. */
+		/* Store the re-entry information for the non-secure world. */
+		spin_lock(&toppers_lock);
+		cm_init_context_by_index(target_idx, ep);
+		spin_unlock(&toppers_lock);
+
+		rc = PSCI_E_SUCCESS;
+		goto exit;
+	}
+#else  /* SPD_toppers */
 	if (rc != PSCI_E_SUCCESS)
 		goto exit;
+#endif /* SPD_toppers */
 
 	/*
 	 * Call the cpu on handler registered by the Secure Payload Dispatcher
@@ -130,7 +148,7 @@ int psci_cpu_on_start(u_register_t target_cpu,
 					psci_svc_cpu_data.aff_info_state);
 
 		assert(psci_get_aff_info_state_by_idx(target_idx) ==
-		       AFF_STATE_ON_PENDING);
+			   AFF_STATE_ON_PENDING);
 	}
 
 	/*
@@ -144,9 +162,126 @@ int psci_cpu_on_start(u_register_t target_cpu,
 	rc = psci_plat_pm_ops->pwr_domain_on(target_cpu);
 	assert((rc == PSCI_E_SUCCESS) || (rc == PSCI_E_INTERN_FAIL));
 
+#ifdef SPD_toppers
+	if (rc == PSCI_E_SUCCESS)  {
+		/* Store the re-entry information for the non-secure world. */
+		spin_lock(&toppers_lock);
+		cm_init_context_by_index((unsigned int)target_idx, ep);
+		spin_unlock(&toppers_lock);
+	}
+#else  /* SPD_toppers */
 	if (rc == PSCI_E_SUCCESS)
 		/* Store the re-entry information for the non-secure world. */
 		cm_init_context_by_index((unsigned int)target_idx, ep);
+#endif /* SPD_toppers */
+	else {
+		/* Restore the state on error. */
+		psci_set_aff_info_state_by_idx(target_idx, AFF_STATE_OFF);
+		flush_cpu_data_by_index((unsigned int)target_idx,
+								psci_svc_cpu_data.aff_info_state);
+	}
+
+exit:
+	psci_spin_unlock_cpu(target_idx);
+	return rc;
+}
+
+#ifdef SPD_toppers
+int psci_cpu_on_start_toppers(u_register_t target_cpu,
+			 const entry_point_info_t *ep)
+{
+	int rc;
+	aff_info_state_t target_aff_state;
+	int target_idx = plat_core_pos_by_mpidr(target_cpu);
+
+	/* Calling function must supply valid input arguments */
+	assert(target_idx >= 0);
+	assert(ep != NULL);
+
+	/*
+	 * This function must only be called on platforms where the
+	 * CPU_ON platform hooks have been implemented.
+	 */
+	assert((psci_plat_pm_ops->pwr_domain_on != NULL) &&
+		(psci_plat_pm_ops->pwr_domain_on_finish != NULL));
+
+	/* Protect against multiple CPUs trying to turn ON the same target CPU */
+	psci_spin_lock_cpu(target_idx);
+
+	/*
+	 * Generic management: Ensure that the cpu is off to be
+	 * turned on.
+	 * Perform cache maintanence ahead of reading the target CPU state to
+	 * ensure that the data is not stale.
+	 * There is a theoretical edge case where the cache may contain stale
+	 * data for the target CPU data - this can occur under the following
+	 * conditions:
+	 * - the target CPU is in another cluster from the current
+	 * - the target CPU was the last CPU to shutdown on its cluster
+	 * - the cluster was removed from coherency as part of the CPU shutdown
+	 *
+	 * In this case the cache maintenace that was performed as part of the
+	 * target CPUs shutdown was not seen by the current CPU's cluster. And
+	 * so the cache may contain stale data for the target CPU.
+	 */
+	flush_cpu_data_by_index((unsigned int)target_idx,
+					psci_svc_cpu_data.aff_info_state);
+	rc = cpu_on_validate_state(psci_get_aff_info_state_by_idx(target_idx));
+	if (rc != PSCI_E_SUCCESS)
+		goto exit;
+
+	/*
+	 * Call the cpu on handler registered by the Secure Payload Dispatcher
+	 * to let it do any bookeeping. If the handler encounters an error, it's
+	 * expected to assert within
+	 */
+	if ((psci_spd_pm != NULL) && (psci_spd_pm->svc_on != NULL))
+		psci_spd_pm->svc_on(target_cpu);
+
+	/*
+	 * Set the Affinity info state of the target cpu to ON_PENDING.
+	 * Flush aff_info_state as it will be accessed with caches
+	 * turned OFF.
+	 */
+	psci_set_aff_info_state_by_idx(target_idx, AFF_STATE_ON_PENDING);
+	flush_cpu_data_by_index((unsigned int)target_idx,
+					psci_svc_cpu_data.aff_info_state);
+
+	 /*
+	  * The cache line invalidation by the target CPU after setting the
+	  * state to OFF (see psci_do_cpu_off()), could cause the update to
+	  * aff_info_state to be invalidated. Retry the update if the target
+	  * CPU aff_info_state is not ON_PENDING.
+	  */
+	target_aff_state = psci_get_aff_info_state_by_idx(target_idx);
+	if (target_aff_state != AFF_STATE_ON_PENDING) {
+		assert(target_aff_state == AFF_STATE_OFF);
+		psci_set_aff_info_state_by_idx(target_idx, AFF_STATE_ON_PENDING);
+		flush_cpu_data_by_index((unsigned int)target_idx,
+								psci_svc_cpu_data.aff_info_state);
+
+		assert(psci_get_aff_info_state_by_idx(target_idx) ==
+				AFF_STATE_ON_PENDING);
+	}
+
+	/*
+	 * Perform generic, architecture and platform specific handling.
+	 */
+	/*
+	 * Plat. management: Give the platform the current state
+	 * of the target cpu to allow it to perform the necessary
+	 * steps to power on.
+	 */
+	rc = psci_plat_pm_ops->pwr_domain_on(target_cpu);
+
+	assert((rc == PSCI_E_SUCCESS) || (rc == PSCI_E_INTERN_FAIL));
+
+	if (rc == PSCI_E_SUCCESS)  {
+		/* Store the re-entry information for the non-secure world. */
+		spin_lock(&toppers_lock);
+		cm_init_context_by_index((unsigned int)target_idx, ep);
+		spin_unlock(&toppers_lock);
+	}
 	else {
 		/* Restore the state on error. */
 		psci_set_aff_info_state_by_idx(target_idx, AFF_STATE_OFF);
@@ -158,6 +293,7 @@ exit:
 	psci_spin_unlock_cpu(target_idx);
 	return rc;
 }
+#endif /* TOPPERS SPD */
 
 /*******************************************************************************
  * The following function finish an earlier power on request. They
@@ -166,6 +302,10 @@ exit:
  ******************************************************************************/
 void psci_cpu_on_finish(int cpu_idx, const psci_power_state_t *state_info)
 {
+#ifdef SPD_toppers
+	volatile uint64_t reg64_val;
+#endif /* SPD_toppers */
+
 	/*
 	 * Plat. management: Perform the platform specific actions
 	 * for this cpu e.g. enabling the gic or zeroing the mailbox
@@ -208,13 +348,20 @@ void psci_cpu_on_finish(int cpu_idx, const psci_power_state_t *state_info)
 	/* Ensure we have been explicitly woken up by another cpu */
 	assert(psci_get_aff_info_state() == AFF_STATE_ON_PENDING);
 
+#ifdef SPD_toppers
+	/* Unlock CPUECTLR.SMCEN protection for S-EL1 */
+	reg64_val = read_actlr_el3() | (uint64_t)(1 << 1);
+	write_actlr_el3(reg64_val);
+#endif /* SPD_toppers */
+
 	/*
 	 * Call the cpu on finish handler registered by the Secure Payload
 	 * Dispatcher to let it do any bookeeping. If the handler encounters an
 	 * error, it's expected to assert within
 	 */
-	if ((psci_spd_pm != NULL) && (psci_spd_pm->svc_on_finish != NULL))
+	if ((psci_spd_pm != NULL) && (psci_spd_pm->svc_on_finish != NULL)) {
 		psci_spd_pm->svc_on_finish(0);
+	}
 
 	PUBLISH_EVENT(psci_cpu_on_finish);
 
