@@ -186,6 +186,19 @@ void bl31_early_platform_setup2(u_register_t arg0, u_register_t arg1,
 #endif
 #endif
 
+#ifdef SPD_toppers
+	SET_PARAM_HEAD(&bl32_image_ep_info, PARAM_EP, VERSION_1, 0);
+	SET_SECURITY_STATE(bl32_image_ep_info.h.attr, SECURE);
+
+#ifdef TOPPERS_ENTRY_POINT
+	bl32_image_ep_info.pc = TOPPERS_ENTRY_POINT;
+#else /* TOPPERS_ENTRY_POINT */
+	bl32_image_ep_info.pc = BL32_BASE;
+#endif /* TOPPERS_ENTRY_POINT */
+
+	bl32_image_ep_info.spsr = 0;
+#endif /* SPD_toppers */
+
 	bl31_tzc380_setup();
 
 #if defined (CSU_RDC_TEST)
@@ -205,8 +218,20 @@ void bl31_plat_arch_setup(void)
 		MT_DEVICE | MT_RW | MT_SECURE);
 #endif
 
+#ifdef SPD_toppers
+#ifdef MONITOR_ACCESS_BL32_ENABLE
+	/*************************************************************
+	** libSafeGのためBL32のメモリ空間をEL3でアクセス可能にする **
+	*************************************************************/
+	/* CODE領域 */
+	mmap_add_region(MONITOR_ACCESS_BL32_CODE_BASE, MONITOR_ACCESS_BL32_CODE_BASE, MONITOR_ACCESS_BL32_CODE_SIZE, MT_CODE);
+	/* DATA領域 */
+	mmap_add_region(MONITOR_ACCESS_BL32_DATA_BASE, MONITOR_ACCESS_BL32_DATA_BASE, MONITOR_ACCESS_BL32_DATA_SIZE, MT_MEMORY | MT_RW);
+#endif /* MONITOR_ACCESS_BL32_ENABLE*/
+#else  /* SPD_toppers */
 	// Map TEE memory
 	mmap_add_region(BL32_BASE, BL32_BASE, BL32_SIZE, MT_MEMORY | MT_RW);
+#endif /* SPD_toppers */
 
 	mmap_add(imx_mmap);
 

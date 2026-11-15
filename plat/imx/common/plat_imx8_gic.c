@@ -21,7 +21,7 @@ uintptr_t rdistif_base_addrs[PLATFORM_CORE_COUNT];
 
 static const interrupt_prop_t g01s_interrupt_props[] = {
 	INTR_PROP_DESC(8, GIC_HIGHEST_SEC_PRIORITY,
-		       INTR_GROUP0, GIC_INTR_CFG_LEVEL),
+			   INTR_GROUP0, GIC_INTR_CFG_LEVEL),
 };
 
 static unsigned int plat_imx_mpidr_to_core_pos(unsigned long mpidr)
@@ -108,3 +108,33 @@ void plat_gic_restore(unsigned int proc_num, struct plat_gic_ctx *ctx)
 	for (int i = 0; i < PLATFORM_CORE_COUNT; i++)
 		gicv3_rdistif_init_restore(i, &ctx->rdist_ctx[i]);
 }
+
+#ifdef SPD_toppers
+
+#include "../../../services/spd/toppers/toppers_private.h"
+
+/* Number of IRQs */
+#define        GICv3_NUM_IRQ                   159
+
+/*
+ * Generate interrupt
+ *
+ * Argument :
+ *    [In]  int_id -   Interrupt ID of GIC v2
+ *
+ * Return value:
+ *   TOPPERS_SMC_RET_SUCCESS -     Success
+ *   TOPPERS_SMC_RET_PARAM_ERROR - Paramter error.
+ */
+int    plat_gen_int(uint32_t int_id)
+{
+	if( int_id < GICv3_NUM_IRQ )  {
+		gicv3_set_interrupt_pending(int_id, 0);
+		return TOPPERS_SMC_RET_SUCCESS;
+	}
+	else  {
+		return TOPPERS_SMC_RET_PARAM_ERROR;
+	}
+}
+
+#endif /* SPD_toppers */

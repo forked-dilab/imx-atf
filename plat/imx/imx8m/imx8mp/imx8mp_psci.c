@@ -16,6 +16,12 @@
 #include <imx8m_psci.h>
 #include <plat_imx8.h>
 
+// #include <lib/cache_helpers.h>
+
+#ifdef SPD_toppers
+extern uintptr_t plat_get_my_entrypoint(void);
+#endif
+
 static const plat_psci_ops_t imx_plat_psci_ops = {
 	.pwr_domain_on = imx_pwr_domain_on,
 	.pwr_domain_on_finish = imx_pwr_domain_on_finish,

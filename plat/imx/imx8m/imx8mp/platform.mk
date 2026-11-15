@@ -57,11 +57,15 @@ ERRATA_A53_835769	:=	1
 ERRATA_A53_843419	:=	1
 ERRATA_A53_855873	:=	1
 
+ifeq (${SPD},toppers)
+BL31_SOURCES	+=	plat/imx/imx8m/imx8mp/safeg_target.c
+else #(${SPD},toppers)
 BL32_BASE		?=	0x56000000
 $(eval $(call add_define,BL32_BASE))
 
 BL32_SIZE		?=	0x2000000
 $(eval $(call add_define,BL32_SIZE))
+endif #(${SPD},toppers)
 
 ifeq (${SPD},trusty)
 	BL31_CFLAGS    +=      -DPLAT_XLAT_TABLES_DYNAMIC=1

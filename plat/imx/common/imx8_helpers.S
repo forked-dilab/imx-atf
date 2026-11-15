@@ -173,9 +173,29 @@ warm_boot:
 endfunc	plat_get_my_entrypoint
 
 func imx_mailbox_init
-	adrp	x1, mailbox_base
-	str	x0, [x1, :lo12:mailbox_base]
-	ret
+    stp     x29, x30, [sp, #-16]!
+    mov     x29, sp
+
+    /*
+     * Store the secure warmboot entry point.
+     */
+    adrp    x1, mailbox_base
+    add     x1, x1, :lo12:mailbox_base
+    str     x0, [x1]
+
+    /*
+     * Make the mailbox contents visible to secondary CPUs.
+     *
+     * clean_dcache_range() performs:
+     *   dc cvac
+     *   dsb sy
+     */
+    mov     x0, x1
+    mov     x1, #8
+    bl      clean_dcache_range
+
+    ldp     x29, x30, [sp], #16
+    ret
 endfunc imx_mailbox_init
 
 func plat_secondary_cold_boot_setup

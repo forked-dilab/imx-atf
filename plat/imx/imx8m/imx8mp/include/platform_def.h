@@ -34,6 +34,24 @@
 #define BL31_BASE			U(0x970000)
 #define BL31_LIMIT			U(0x990000)
 
+#ifdef SPD_toppers
+#include "../services/spd/toppers/toppers_config.h"
+
+#ifdef TOPPERS_BASE
+#define BL32_BASE			TOPPERS_BASE
+#else  /* TOPPERS_BASE */
+#define BL32_BASE			0xBE000000
+#endif /* TOPPERS_BASE */
+
+#ifdef TOPPERS_SIZE
+#define BL32_SIZE			TOPPERS_SIZE
+#else  /* TOPPERS_SIZE */
+#define BL32_SIZE			0x01000000
+#endif /* TOPPERS_SIZE */
+
+#define PLAT_GIC_VER		3
+#endif /* SPD_toppers */
+
 /* non-secure uboot base */
 #define PLAT_NS_IMAGE_OFFSET		U(0x40200000)
 

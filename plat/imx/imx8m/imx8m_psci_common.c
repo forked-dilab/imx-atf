@@ -46,6 +46,7 @@ int imx_pwr_domain_on(u_register_t mpidr)
 	core_id = MPIDR_AFFLVL0_VAL(mpidr);
 
 	imx_set_cpu_secure_entry(core_id, base_addr);
+
 	imx_set_cpu_pwr_on(core_id);
 
 	return PSCI_E_SUCCESS;
