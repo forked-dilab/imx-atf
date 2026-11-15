@@ -69,17 +69,17 @@ CHECK_PATHS		:=	${ROOT_DIRS_TO_CHECK}			\
 
 # Verbose flag
 ifeq (${V},0)
-        Q:=@
-        ECHO:=@echo
-        CHECKCODE_ARGS	+=	--no-summary --terse
+Q:=@
+ECHO:=@echo
+CHECKCODE_ARGS	+=	--no-summary --terse
 else
-        Q:=
-        ECHO:=$(ECHO_QUIET)
+Q:=
+ECHO:=$(ECHO_QUIET)
 endif
 
 ifneq ($(findstring s,$(filter-out --%,$(MAKEFLAGS))),)
-        Q:=@
-        ECHO:=$(ECHO_QUIET)
+Q:=@
+ECHO:=$(ECHO_QUIET)
 endif
 
 export Q ECHO
@@ -87,66 +87,66 @@ export Q ECHO
 # Process Debug flag
 $(eval $(call add_define,DEBUG))
 ifneq (${DEBUG}, 0)
-        BUILD_TYPE	:=	debug
-        TF_CFLAGS	+= 	-g
+BUILD_TYPE	:=	debug
+TF_CFLAGS	+= 	-g
 
-        ifneq ($(findstring clang,$(notdir $(CC))),)
-             ASFLAGS		+= 	-g
-        else
-             ASFLAGS		+= 	-g -Wa,--gdwarf-2
-        endif
-
-        # Use LOG_LEVEL_INFO by default for debug builds
-        LOG_LEVEL	:=	40
+ifneq ($(findstring clang,$(notdir $(CC))),)
+ASFLAGS		+= 	-g
 else
-        BUILD_TYPE	:=	release
-        # Use LOG_LEVEL_NOTICE by default for release builds
-        LOG_LEVEL	:=	20
+ASFLAGS		+= 	-g -Wa,--gdwarf-2
+endif
+
+# Use LOG_LEVEL_INFO by default for debug builds
+LOG_LEVEL	:=	40
+else
+BUILD_TYPE	:=	release
+# Use LOG_LEVEL_NOTICE by default for release builds
+LOG_LEVEL	:=	20
 endif
 
 # Default build string (git branch and commit)
 ifeq (${BUILD_STRING},)
-        BUILD_STRING	:=	$(shell git describe --long --always --dirty --tags 2> /dev/null)
+BUILD_STRING	:=	$(shell git describe --long --always --dirty --tags 2> /dev/null)
 endif
 VERSION_STRING		:=	v${VERSION_MAJOR}.${VERSION_MINOR}(${BUILD_TYPE}):${BUILD_STRING}
 
 # The cert_create tool cannot generate certificates individually, so we use the
 # target 'certificates' to create them all
 ifneq (${GENERATE_COT},0)
-        FIP_DEPS += certificates
-        FWU_FIP_DEPS += fwu_certificates
+FIP_DEPS += certificates
+FWU_FIP_DEPS += fwu_certificates
 endif
 
 # Process BRANCH_PROTECTION value and set
 # Pointer Authentication and Branch Target Identification flags
 ifeq (${BRANCH_PROTECTION},0)
-	# Default value turns off all types of branch protection
-	BP_OPTION := none
+# Default value turns off all types of branch protection
+BP_OPTION := none
 else ifneq (${ARCH},aarch64)
-        $(error BRANCH_PROTECTION requires AArch64)
+$(error BRANCH_PROTECTION requires AArch64)
 else ifeq (${BRANCH_PROTECTION},1)
-	# Enables all types of branch protection features
-	BP_OPTION := standard
-	ENABLE_BTI := 1
-	ENABLE_PAUTH := 1
+# Enables all types of branch protection features
+BP_OPTION := standard
+ENABLE_BTI := 1
+ENABLE_PAUTH := 1
 else ifeq (${BRANCH_PROTECTION},2)
-	# Return address signing to its standard level
-	BP_OPTION := pac-ret
-	ENABLE_PAUTH := 1
+# Return address signing to its standard level
+BP_OPTION := pac-ret
+ENABLE_PAUTH := 1
 else ifeq (${BRANCH_PROTECTION},3)
-	# Extend the signing to include leaf functions
-	BP_OPTION := pac-ret+leaf
-	ENABLE_PAUTH := 1
+# Extend the signing to include leaf functions
+BP_OPTION := pac-ret+leaf
+ENABLE_PAUTH := 1
 else
-        $(error Unknown BRANCH_PROTECTION value ${BRANCH_PROTECTION})
+$(error Unknown BRANCH_PROTECTION value ${BRANCH_PROTECTION})
 endif
 
 # USE_SPINLOCK_CAS requires AArch64 build
 ifeq (${USE_SPINLOCK_CAS},1)
 ifneq (${ARCH},aarch64)
-        $(error USE_SPINLOCK_CAS requires AArch64)
+$(error USE_SPINLOCK_CAS requires AArch64)
 else
-        $(info USE_SPINLOCK_CAS is an experimental feature)
+$(info USE_SPINLOCK_CAS is an experimental feature)
 endif
 endif
 
@@ -170,7 +170,7 @@ DTC			:=	dtc
 
 # Use ${LD}.bfd instead if it exists (as absolute path or together with $PATH).
 ifneq ($(strip $(wildcard ${LD}.bfd) \
-	$(foreach dir,$(subst :, ,${PATH}),$(wildcard ${dir}/${LINKER}.bfd))),)
+$(foreach dir,$(subst :, ,${PATH}),$(wildcard ${dir}/${LINKER}.bfd))),)
 LINKER			:=	${LINKER}.bfd
 endif
 
@@ -364,30 +364,30 @@ INCLUDE_TBBR_MK		:=	1
 
 ifneq (${SPD},none)
 ifeq (${ARCH},aarch32)
-        $(error "Error: SPD is incompatible with AArch32.")
+$(error "Error: SPD is incompatible with AArch32.")
 endif
 ifdef EL3_PAYLOAD_BASE
-        $(warning "SPD and EL3_PAYLOAD_BASE are incompatible build options.")
-        $(warning "The SPD and its BL32 companion will be present but ignored.")
+$(warning "SPD and EL3_PAYLOAD_BASE are incompatible build options.")
+$(warning "The SPD and its BL32 companion will be present but ignored.")
 endif
-        # We expect to locate an spd.mk under the specified SPD directory
-        SPD_MAKE	:=	$(wildcard services/spd/${SPD}/${SPD}.mk)
+# We expect to locate an spd.mk under the specified SPD directory
+SPD_MAKE	:=	$(wildcard services/spd/${SPD}/${SPD}.mk)
 
-        ifeq (${SPD_MAKE},)
-                $(error Error: No services/spd/${SPD}/${SPD}.mk located)
-        endif
-        $(info Including ${SPD_MAKE})
-        include ${SPD_MAKE}
+ifeq (${SPD_MAKE},)
+$(error Error: No services/spd/${SPD}/${SPD}.mk located)
+endif
+$(info Including ${SPD_MAKE})
+include ${SPD_MAKE}
 
-        # If there's BL32 companion for the chosen SPD, we expect that the SPD's
-        # Makefile would set NEED_BL32 to "yes". In this case, the build system
-        # supports two mutually exclusive options:
-        # * BL32 is built from source: then BL32_SOURCES must contain the list
-        #   of source files to build BL32
-        # * BL32 is a prebuilt binary: then BL32 must point to the image file
-        #   that will be included in the FIP
-        # If both BL32_SOURCES and BL32 are defined, the binary takes precedence
-        # over the sources.
+# If there's BL32 companion for the chosen SPD, we expect that the SPD's
+# Makefile would set NEED_BL32 to "yes". In this case, the build system
+# supports two mutually exclusive options:
+# * BL32 is built from source: then BL32_SOURCES must contain the list
+#   of source files to build BL32
+# * BL32 is a prebuilt binary: then BL32 must point to the image file
+#   that will be included in the FIP
+# If both BL32_SOURCES and BL32 are defined, the binary takes precedence
+# over the sources.
 endif
 
 ################################################################################
@@ -404,13 +404,13 @@ include make_helpers/armv7-a-cpus.mk
 endif
 
 ifeq ($(ENABLE_PIE),1)
-    TF_CFLAGS		+=	-fpie
-    TF_LDFLAGS		+=	-pie --no-dynamic-linker
+TF_CFLAGS		+=	-fpie
+TF_LDFLAGS		+=	-pie --no-dynamic-linker
 else
-    PIE_FOUND		:=	$(findstring --enable-default-pie,${GCC_V_OUTPUT})
-    ifneq ($(PIE_FOUND),)
-        TF_CFLAGS		+=	-fno-PIE
-    endif
+PIE_FOUND		:=	$(findstring --enable-default-pie,${GCC_V_OUTPUT})
+ifneq ($(PIE_FOUND),)
+TF_CFLAGS		+=	-fno-PIE
+endif
 endif
 
 # Include the CPU specific operations makefile, which provides default
@@ -429,7 +429,7 @@ ifneq (${AARCH32_SP},none)
 AARCH32_SP_MAKE	:=	$(wildcard bl32/${AARCH32_SP}/${AARCH32_SP}.mk)
 
 ifeq (${AARCH32_SP_MAKE},)
-  $(error Error: No bl32/${AARCH32_SP}/${AARCH32_SP}.mk located)
+$(error Error: No bl32/${AARCH32_SP}/${AARCH32_SP}.mk located)
 endif
 
 $(info Including ${AARCH32_SP_MAKE})
@@ -450,28 +450,28 @@ endif
 ################################################################################
 
 ifdef EL3_PAYLOAD_BASE
-        ifdef PRELOADED_BL33_BASE
-                $(warning "PRELOADED_BL33_BASE and EL3_PAYLOAD_BASE are \
-                incompatible build options. EL3_PAYLOAD_BASE has priority.")
-        endif
-        ifneq (${GENERATE_COT},0)
-                $(error "GENERATE_COT and EL3_PAYLOAD_BASE are incompatible build options.")
-        endif
-        ifneq (${TRUSTED_BOARD_BOOT},0)
-                $(error "TRUSTED_BOARD_BOOT and EL3_PAYLOAD_BASE are incompatible build options.")
-        endif
+ifdef PRELOADED_BL33_BASE
+$(warning "PRELOADED_BL33_BASE and EL3_PAYLOAD_BASE are \
+incompatible build options. EL3_PAYLOAD_BASE has priority.")
+endif
+ifneq (${GENERATE_COT},0)
+$(error "GENERATE_COT and EL3_PAYLOAD_BASE are incompatible build options.")
+endif
+ifneq (${TRUSTED_BOARD_BOOT},0)
+$(error "TRUSTED_BOARD_BOOT and EL3_PAYLOAD_BASE are incompatible build options.")
+endif
 endif
 
 ifeq (${NEED_BL33},yes)
-        ifdef EL3_PAYLOAD_BASE
-                $(warning "BL33 image is not needed when option \
-                BL33_PAYLOAD_BASE is used and won't be added to the FIP file.")
-        endif
-        ifdef PRELOADED_BL33_BASE
-                $(warning "BL33 image is not needed when option \
-                PRELOADED_BL33_BASE is used and won't be added to the FIP \
-                file.")
-        endif
+ifdef EL3_PAYLOAD_BASE
+$(warning "BL33 image is not needed when option \
+BL33_PAYLOAD_BASE is used and won't be added to the FIP file.")
+endif
+ifdef PRELOADED_BL33_BASE
+$(warning "BL33 image is not needed when option \
+PRELOADED_BL33_BASE is used and won't be added to the FIP \
+file.")
+endif
 endif
 
 # When building for systems with hardware-assisted coherency, there's no need to
@@ -487,56 +487,56 @@ endif
 
 # For RAS_EXTENSION, require that EAs are handled in EL3 first
 ifeq ($(RAS_EXTENSION),1)
-    ifneq ($(HANDLE_EA_EL3_FIRST),1)
-        $(error For RAS_EXTENSION, HANDLE_EA_EL3_FIRST must also be 1)
-    endif
+ifneq ($(HANDLE_EA_EL3_FIRST),1)
+$(error For RAS_EXTENSION, HANDLE_EA_EL3_FIRST must also be 1)
+endif
 endif
 
 # When FAULT_INJECTION_SUPPORT is used, require that RAS_EXTENSION is enabled
 ifeq ($(FAULT_INJECTION_SUPPORT),1)
-    ifneq ($(RAS_EXTENSION),1)
-        $(error For FAULT_INJECTION_SUPPORT, RAS_EXTENSION must also be 1)
-    endif
+ifneq ($(RAS_EXTENSION),1)
+$(error For FAULT_INJECTION_SUPPORT, RAS_EXTENSION must also be 1)
+endif
 endif
 
 # DYN_DISABLE_AUTH can be set only when TRUSTED_BOARD_BOOT=1
 ifeq ($(DYN_DISABLE_AUTH), 1)
-    ifeq (${TRUSTED_BOARD_BOOT}, 0)
-        $(error "TRUSTED_BOARD_BOOT must be enabled for DYN_DISABLE_AUTH to be set.")
-    endif
+ifeq (${TRUSTED_BOARD_BOOT}, 0)
+$(error "TRUSTED_BOARD_BOOT must be enabled for DYN_DISABLE_AUTH to be set.")
+endif
 endif
 
 # If pointer authentication is used in the firmware, make sure that all the
 # registers associated to it are also saved and restored.
 # Not doing it would leak the value of the keys used by EL3 to EL1 and S-EL1.
 ifeq ($(ENABLE_PAUTH),1)
-    ifeq ($(CTX_INCLUDE_PAUTH_REGS),0)
-        $(error Pointer Authentication requires CTX_INCLUDE_PAUTH_REGS=1)
-    endif
+ifeq ($(CTX_INCLUDE_PAUTH_REGS),0)
+$(error Pointer Authentication requires CTX_INCLUDE_PAUTH_REGS=1)
+endif
 endif
 
 ifeq ($(CTX_INCLUDE_PAUTH_REGS),1)
-    ifneq (${ARCH},aarch64)
-        $(error CTX_INCLUDE_PAUTH_REGS requires AArch64)
-    else
-        $(info CTX_INCLUDE_PAUTH_REGS is an experimental feature)
-    endif
+ifneq (${ARCH},aarch64)
+$(error CTX_INCLUDE_PAUTH_REGS requires AArch64)
+else
+$(info CTX_INCLUDE_PAUTH_REGS is an experimental feature)
+endif
 endif
 
 ifeq ($(ENABLE_PAUTH),1)
-    $(info Pointer Authentication is an experimental feature)
+$(info Pointer Authentication is an experimental feature)
 endif
 
 ifeq ($(ENABLE_BTI),1)
-    $(info Branch Protection is an experimental feature)
+$(info Branch Protection is an experimental feature)
 endif
 
 ifeq ($(CTX_INCLUDE_MTE_REGS),1)
-    ifneq (${ARCH},aarch64)
-        $(error CTX_INCLUDE_MTE_REGS requires AArch64)
-    else
-        $(info CTX_INCLUDE_MTE_REGS is an experimental feature)
-    endif
+ifneq (${ARCH},aarch64)
+$(error CTX_INCLUDE_MTE_REGS requires AArch64)
+else
+$(info CTX_INCLUDE_MTE_REGS is an experimental feature)
+endif
 endif
 
 ################################################################################
@@ -546,52 +546,52 @@ endif
 # Using BL2 implies that a BL33 image also needs to be supplied for the FIP and
 # Certificate generation tools. This flag can be overridden by the platform.
 ifdef BL2_SOURCES
-        ifdef EL3_PAYLOAD_BASE
-                # If booting an EL3 payload there is no need for a BL33 image
-                # in the FIP file.
-                NEED_BL33		:=	no
-        else
-                ifdef PRELOADED_BL33_BASE
-                        # If booting a BL33 preloaded image there is no need of
-                        # another one in the FIP file.
-                        NEED_BL33		:=	no
-                else
-                        NEED_BL33		?=	yes
-                endif
-        endif
+ifdef EL3_PAYLOAD_BASE
+# If booting an EL3 payload there is no need for a BL33 image
+# in the FIP file.
+NEED_BL33		:=	no
+else
+ifdef PRELOADED_BL33_BASE
+# If booting a BL33 preloaded image there is no need of
+# another one in the FIP file.
+NEED_BL33		:=	no
+else
+NEED_BL33		?=	yes
+endif
+endif
 endif
 
 # If SCP_BL2 is given, we always want FIP to include it.
 ifdef SCP_BL2
-        NEED_SCP_BL2		:=	yes
+NEED_SCP_BL2		:=	yes
 endif
 
 # For AArch32, BL31 is not currently supported.
 ifneq (${ARCH},aarch32)
-    ifdef BL31_SOURCES
-        # When booting an EL3 payload, there is no need to compile the BL31 image nor
-        # put it in the FIP.
-        ifndef EL3_PAYLOAD_BASE
-            NEED_BL31 := yes
-        endif
-    endif
+ifdef BL31_SOURCES
+# When booting an EL3 payload, there is no need to compile the BL31 image nor
+# put it in the FIP.
+ifndef EL3_PAYLOAD_BASE
+NEED_BL31 := yes
+endif
+endif
 endif
 
 # Process TBB related flags
 ifneq (${GENERATE_COT},0)
-        # Common cert_create options
-        ifneq (${CREATE_KEYS},0)
-                $(eval CRT_ARGS += -n)
-                $(eval FWU_CRT_ARGS += -n)
-                ifneq (${SAVE_KEYS},0)
-                        $(eval CRT_ARGS += -k)
-                        $(eval FWU_CRT_ARGS += -k)
-                endif
-        endif
-        # Include TBBR makefile (unless the platform indicates otherwise)
-        ifeq (${INCLUDE_TBBR_MK},1)
-                include make_helpers/tbbr/tbbr_tools.mk
-        endif
+# Common cert_create options
+ifneq (${CREATE_KEYS},0)
+$(eval CRT_ARGS += -n)
+$(eval FWU_CRT_ARGS += -n)
+ifneq (${SAVE_KEYS},0)
+$(eval CRT_ARGS += -k)
+$(eval FWU_CRT_ARGS += -k)
+endif
+endif
+# Include TBBR makefile (unless the platform indicates otherwise)
+ifeq (${INCLUDE_TBBR_MK},1)
+include make_helpers/tbbr/tbbr_tools.mk
+endif
 endif
 
 ifneq (${FIP_ALIGN},0)
@@ -706,11 +706,11 @@ $(eval $(call assert_numeric,ARM_ARCH_MINOR))
 $(eval $(call assert_numeric,BRANCH_PROTECTION))
 
 ifdef KEY_SIZE
-        $(eval $(call assert_numeric,KEY_SIZE))
+$(eval $(call assert_numeric,KEY_SIZE))
 endif
 
 ifeq ($(filter $(SANITIZE_UB), on off trap),)
-        $(error "Invalid value for SANITIZE_UB: can be one of on, off, trap")
+$(error "Invalid value for SANITIZE_UB: can be one of on, off, trap")
 endif
 
 ################################################################################
@@ -768,18 +768,18 @@ $(eval $(call add_define,BL2_INV_DCACHE))
 $(eval $(call add_define,USE_SPINLOCK_CAS))
 
 ifeq (${SANITIZE_UB},trap)
-        $(eval $(call add_define,MONITOR_TRAPS))
+$(eval $(call add_define,MONITOR_TRAPS))
 endif
 
 # Define the EL3_PAYLOAD_BASE flag only if it is provided.
 ifdef EL3_PAYLOAD_BASE
-        $(eval $(call add_define,EL3_PAYLOAD_BASE))
+$(eval $(call add_define,EL3_PAYLOAD_BASE))
 else
-        # Define the PRELOADED_BL33_BASE flag only if it is provided and
-        # EL3_PAYLOAD_BASE is not defined, as it has priority.
-        ifdef PRELOADED_BL33_BASE
-                $(eval $(call add_define,PRELOADED_BL33_BASE))
-        endif
+# Define the PRELOADED_BL33_BASE flag only if it is provided and
+# EL3_PAYLOAD_BASE is not defined, as it has priority.
+ifdef PRELOADED_BL33_BASE
+$(eval $(call add_define,PRELOADED_BL33_BASE))
+endif
 endif
 
 # Define the DYN_DISABLE_AUTH flag only if set.
@@ -806,17 +806,17 @@ msg_start:
 ifeq (${ERROR_DEPRECATED},0)
 # Check if deprecated declarations and cpp warnings should be treated as error or not.
 ifneq ($(findstring clang,$(notdir $(CC))),)
-    CPPFLAGS		+= 	-Wno-error=deprecated-declarations
+CPPFLAGS		+= 	-Wno-error=deprecated-declarations
 else
-    CPPFLAGS		+= 	-Wno-error=deprecated-declarations -Wno-error=cpp
+CPPFLAGS		+= 	-Wno-error=deprecated-declarations -Wno-error=cpp
 endif
 # __ASSEMBLY__ is deprecated in favor of the compiler-builtin __ASSEMBLER__.
 ASFLAGS	+= -D__ASSEMBLY__
 # AARCH32/AARCH64 macros are deprecated in favor of the compiler-builtin __aarch64__.
 ifeq (${ARCH},aarch32)
-        $(eval $(call add_define,AARCH32))
+$(eval $(call add_define,AARCH32))
 else
-        $(eval $(call add_define,AARCH64))
+$(eval $(call add_define,AARCH64))
 endif
 endif # !ERROR_DEPRECATED
 
@@ -870,8 +870,17 @@ endif
 
 # Expand build macros for the different images
 ifeq (${NEED_FDT},yes)
-    $(eval $(call MAKE_DTBS,$(BUILD_PLAT)/fdts,$(FDT_SOURCES)))
+$(eval $(call MAKE_DTBS,$(BUILD_PLAT)/fdts,$(FDT_SOURCES)))
 endif
+
+# Added start for TOPPERS SPD
+ifeq (${SPD},toppers)
+TF_CFLAGS          += -DTOPPERS_SPD
+ifeq (${BL32_AARCH32},yes)
+TF_CFLAGS          += -DBL32_AARCH32
+endif
+endif
+# Added end for TOPPERS SPD
 
 locate-checkpatch:
 ifndef CHECKPATCH
