@@ -1,3 +1,8 @@
+.. note::
+
+   This repository is a fork of `nxp-imx/imx-atf <https://github.com/nxp-imx/imx-atf.git>`_ for specific modifications.
+   Please refer to the `upstream linux-imx repository <https://github.com/nxp-imx/imx-atf>`_ for the latest version and upstream updates.
+
 Trusted Firmware-A
 ==================
 
